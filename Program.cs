@@ -12,46 +12,35 @@ namespace Archiver
         {
             try
             {
-                var options = ParseArguments(args);
-                var compressor = new Compressor(options);
-                compressor.Compress();
-            }
-            catch (ParseException pe)
-            {
-                Console.WriteLine(pe.Message);
-            }
-        }
+                var options = new Options();
 
-        static Options ParseArguments(string[] args)
-        {
-            if (args.Length < 2)
-            {
-                throw new ParseException("Using: archiver.exe <inputFilename> <outputFilename> [options]");
+                var optionSet = new OptionSet()
+                {
+                    { "in=|input=", "input filename", v => options.Input = v },
+                    { "out=|output=", "output filename", v => options.Output = v },
+                    { "b:", "read buffer size in bytes", v => options.ReadBufferSize = (v != null ? int.Parse(v) : 1024 * 1024) },
+                    { "mb:", "maximum read buffers in memory", v => options.MaxBuffers = (v != null ? int.Parse(v) : 1000) },
+                };
+                var commandSet = new CommandSet("archiver")
+                {
+                    "usage: archiver.exe COMMAND [arguments] [options]",
+                    new Command("compress", "Compress input file to output file")
+                    {
+                        Options = optionSet,
+                        Run = argv => new Compressor(options).Compress()
+                    },
+                    new Command("decompress", "Decompress input file to output file")
+                    {
+                        Options = optionSet,
+                        Run = argv => new Compressor(options).Decompress()
+                    }
+                };
+                commandSet.Run(args);
             }
-
-            string inputFilename = args[0];
-            string outputFilename = args[1];
-            if (!File.Exists(inputFilename))
+            catch (IOException ioe)
             {
-                throw new ParseException("Input '" + inputFilename + "' not exists");
+                Console.WriteLine(ioe.Message);
             }
-            if (string.IsNullOrEmpty(outputFilename))
-            {
-                throw new ParseException("Output filename must be specified");
-            }
-            var options = new Options
-            {
-                Input = inputFilename,
-                Output = outputFilename
-            };
-
-            var optionSet = new OptionSet()
-            {
-                { "b=", v => options.ReadBufferSize = (v != null ? int.Parse(v) : 1024 * 1024) },
-                { "mb=", v => options.MaxBuffers = (v != null ? int.Parse(v) : 1000) },
-            };
-            optionSet.Parse(args);
-            return options;
         }
     }
 }

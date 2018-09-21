@@ -18,7 +18,7 @@ namespace Archiver
 
         private int _chunkIndex = 0;
         private const int BatchSize = 10;
-        private const int WriteThreadsCount = 4;
+        private const int DefaultOutputBufferSize = 4096;
 
         public Compressor(Options options)
         {
@@ -62,11 +62,18 @@ namespace Archiver
             return chunk;
         }
 
+        internal void Decompress()
+        {
+            throw new NotImplementedException();
+        }
+
         protected virtual void Write()
         {
-            using (var outputStream = File.Exists(Options.Output)
-                ? new FileStream(Options.Output, FileMode.Create)
-                : File.Create(Options.Output))
+            if (!File.Exists(Options.Output))
+            {
+                File.Create(Options.Output);
+            }
+            using (var outputStream = new FileStream(Options.Output, FileMode.Create))
             {
                 while (IsReading || ChunksQueue.Count > 0)
                 {
@@ -100,37 +107,14 @@ namespace Archiver
             asyncState.Completed.Set();
         }
 
-        private void WriteBatch(IEnumerable<Chunk> batch, FileStream stream)
+        private void WriteBatch(IEnumerable<Chunk> batch, Stream stream)
         {
-            byte[] buffer = new byte[batch.Sum(b => b.Compressed.Length)];
-            int position = 0;
-            foreach (var item in batch.OrderBy(a => a.Index))
+            var orderedCollection = batch.OrderBy(a => a.Index).ToList();
+            for(int i = 0; i < orderedCollection.Count; i++)
             {
-                Array.Copy(item.Compressed, 0, buffer, position, item.Compressed.Length);
-                position += item.Compressed.Length;
+                var chunk = orderedCollection[i];
+                stream.Write(chunk.Compressed, 0, chunk.Compressed.Length);
             }
-            var waits = new List<EventWaitHandle>();
-            var blocks = new int[WriteThreadsCount];
-            for (int i = 0; i < WriteThreadsCount; i++)
-            {
-                blocks[i] = (i + 1) * (buffer.Length / WriteThreadsCount);
-            }
-            //blocks[blocks.Length - 1] = buffer.Length - ((WriteThreadsCount - 1) * (buffer.Length / WriteThreadsCount));
-
-            for (int i = 0; i < WriteThreadsCount; i++)
-            {
-                var asyncState = new AsyncChunkState();
-                waits.Add(asyncState.Completed);
-                var n = i;
-                ThreadPool.QueueUserWorkItem(
-                    state =>
-                    {
-                        stream.Write(buffer, n > 0 ? blocks[n - 1] + 1 : 0,  n > 0 ? blocks[n] - blocks[n-1] : blocks[n]);
-                        (state as IAsyncChunkState).Completed.Set();
-                    }, asyncState);
-                ;
-            }
-            WaitHandle.WaitAll(waits.ToArray());
         }
     }
 }
