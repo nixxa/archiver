@@ -3,9 +3,9 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 
-namespace Archiver
+namespace Archiver.Collections
 {
-    public class SortedConcurrentQueue<T> where T: IIndexedItem
+    public class IndexedConcurrentQueue<T> where T: IIndexedItem
     {
         protected readonly Dictionary<int, T> Internal = new Dictionary<int, T>();
         protected readonly ReaderWriterLockSlim Lock = new ReaderWriterLockSlim();
@@ -15,7 +15,7 @@ namespace Archiver
 
         private ManualResetEvent _waiter = new ManualResetEvent(false);
 
-        public SortedConcurrentQueue(int startIndex = 0)
+        public IndexedConcurrentQueue(int startIndex = 0)
         {
             _startIndex = startIndex;
             _nextIndex = _startIndex + 1;
@@ -23,12 +23,10 @@ namespace Archiver
 
         public void Enqueue(T obj)
         {
-            Console.WriteLine("Adding index " + obj.Index);
             Lock.EnterWriteLock();
             try
             {
                 Internal.Add(obj.Index, obj);
-                Console.WriteLine("Added index " + obj.Index);
                 if (obj.Index == _nextIndex)
                 {
                     _waiter.Set();
@@ -52,7 +50,6 @@ namespace Archiver
             try
             {
                 Internal.Remove(_nextIndex);
-                Console.WriteLine("Removed index " + _nextIndex);
                 _nextIndex += 1;
                 if (!Internal.ContainsKey(_nextIndex))
                 {

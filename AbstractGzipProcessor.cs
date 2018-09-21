@@ -1,6 +1,5 @@
-﻿using Archiver.Interfaces;
+﻿using Archiver.Collections;
 using Archiver.Threading;
-using System;
 using System.IO;
 using System.Threading;
 
@@ -9,11 +8,10 @@ namespace Archiver
     public abstract class AbstractGzipProcessor
     {
         protected Options Options { get; private set; }
-        protected ConcurrentQueue<Chunk> ReadChunksQueue { get; set; }
-        protected SortedConcurrentQueue<Chunk> ExecutedChunksQueue { get; set; }
+        private ConcurrentQueue<Chunk> ReadChunksQueue { get; set; }
+        private IndexedConcurrentQueue<Chunk> ExecutedChunksQueue { get; set; }
 
         private int _chunkIndex = 0;
-        private const int DefaultOutputBufferSize = 4096;
         private bool _reading = false;
         private bool _executing = false;
 
@@ -25,7 +23,7 @@ namespace Archiver
         public virtual void Run()
         {
             ReadChunksQueue = new ConcurrentQueue<Chunk>(Options.MaxBuffers);
-            ExecutedChunksQueue = new SortedConcurrentQueue<Chunk>();
+            ExecutedChunksQueue = new IndexedConcurrentQueue<Chunk>();
 
             var execThread = new Thread(Execute);
             execThread.Start();

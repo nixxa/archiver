@@ -1,5 +1,4 @@
-﻿using Archiver.Exceptions;
-using Mono.Options;
+﻿using Mono.Options;
 using System;
 using System.IO;
 
@@ -18,8 +17,7 @@ namespace Archiver
                 {
                     { "in=|input=", "input filename", v => options.Input = v },
                     { "out=|output=", "output filename", v => options.Output = v },
-                    { "b:", "read buffer size in bytes", v => options.ReadBufferSize = (v != null ? int.Parse(v) : 1024 * 1024) },
-                    { "mb:", "maximum read buffers in memory", v => options.MaxBuffers = (v != null ? int.Parse(v) : 1000) },
+                    { "mem:", "maximum memory for read buffers in megabytes", v => options.ReadingMemory = (v != null ? int.Parse(v) : -1) },
                 };
                 var commandSet = new CommandSet("archiver")
                 {
