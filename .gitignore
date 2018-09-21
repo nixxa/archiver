@@ -3,3 +3,6 @@ bin/Release/*
 obj/*
 .vs/*
 Archiver.csproj.user
+*.log
+*.gz
+*.txt

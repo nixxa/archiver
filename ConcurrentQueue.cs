@@ -5,71 +5,49 @@ namespace Archiver
 {
     public class ConcurrentQueue<T>
     {
-        private readonly Queue<T> _internal = new Queue<T>();
-        private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim();
-        private readonly int _maxLength = 10;
-        private readonly ManualResetEvent _canWrite = new ManualResetEvent(true);
+        protected readonly Queue<T> Internal = new Queue<T>();
+        protected readonly ReaderWriterLockSlim Lock = new ReaderWriterLockSlim();
+        protected readonly int MaxLength;
+        protected readonly ManualResetEvent CanWrite = new ManualResetEvent(true);
 
         public ConcurrentQueue(int maxLength = short.MaxValue)
         {
-            _maxLength = maxLength;
+            MaxLength = maxLength;
         }
 
-        public void Enqueue(T obj)
+        public virtual void Enqueue(T obj)
         {
-            _canWrite.WaitOne();
+            CanWrite.WaitOne();
+            Lock.EnterWriteLock();
             try
             {
-                _lock.EnterWriteLock();
-                _internal.Enqueue(obj);
-                if (_internal.Count == _maxLength)
+                Internal.Enqueue(obj);
+                if (Internal.Count == MaxLength)
                 {
-                    _canWrite.Reset();
+                    CanWrite.Reset();
                 }
             }
             finally
             {
-                _lock.ExitWriteLock();
+                Lock.ExitWriteLock();
             }
         }
 
-        public T Dequeue()
+        public virtual T Dequeue()
         {
+            Lock.EnterWriteLock();
             try
             {
-                _lock.EnterWriteLock();
-                var result = _internal.Dequeue();
-                if (_internal.Count < _maxLength)
+                var result = Internal.Dequeue();
+                if (Internal.Count < MaxLength)
                 {
-                    _canWrite.Set();
+                    CanWrite.Set();
                 }
                 return result;
             }
             finally
             {
-                _lock.ExitWriteLock();
-            }
-        }
-
-        public IEnumerable<T> Dequeue(int count)
-        {
-            try
-            {
-                _lock.EnterWriteLock();
-                var result = new List<T>();
-                for (int i = 0; i < count && _internal.Count > 0; i++)
-                {
-                    result.Add(_internal.Dequeue());
-                }
-                if (_internal.Count < _maxLength)
-                {
-                    _canWrite.Set();
-                }
-                return result;
-            }
-            finally
-            {
-                _lock.ExitWriteLock();
+                Lock.ExitWriteLock();
             }
         }
 
@@ -77,14 +55,14 @@ namespace Archiver
         {
             get
             {
+                Lock.EnterReadLock();
                 try
                 {
-                    _lock.EnterReadLock();
-                    return _internal.Count;
+                    return Internal.Count;
                 }
                 finally
                 {
-                    _lock.ExitReadLock();
+                    Lock.ExitReadLock();
                 }
             }
         }

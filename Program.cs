@@ -27,12 +27,12 @@ namespace Archiver
                     new Command("compress", "Compress input file to output file")
                     {
                         Options = optionSet,
-                        Run = argv => new Compressor(options).Compress()
+                        Run = argv => new Compressor(options).Run()
                     },
                     new Command("decompress", "Decompress input file to output file")
                     {
                         Options = optionSet,
-                        Run = argv => new Compressor(options).Decompress()
+                        Run = argv => new Decompressor(options).Run()
                     }
                 };
                 commandSet.Run(args);
