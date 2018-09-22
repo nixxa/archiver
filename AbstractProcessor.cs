@@ -82,7 +82,7 @@ namespace Archiver
         {
             ReadChunksQueue.WaitForInput();
             _executing = true;
-            using (var threadPool = new GeneralThreadPool())
+            using (var threadPool = new GeneralThreadPool(Options.MaxBuffers))
             {
                 while (_reading || ReadChunksQueue.Count > 0)
                 {

@@ -59,8 +59,5 @@
     <Compile Include="Collections\IndexedConcurrentQueue.cs" />
     <Compile Include="Threading\GeneralThreadPool.cs" />
   </ItemGroup>
-  <ItemGroup>
-    <None Include="app.config" />
-  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

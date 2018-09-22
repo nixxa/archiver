@@ -24,7 +24,7 @@ namespace Archiver
 
         private int _readingMemory = -1;
 
-        private const int MaximumBufferSize = 8 * 1024 * 1024; // 8Mb
+        private const int MaximumBufferSize = 1024 * 1024; // 8Mb
 
         public Options()
         {
@@ -42,13 +42,13 @@ namespace Archiver
             long bytes = ReadingMemory * 1024 * 1024;
             if (bytes > MaximumBufferSize)
             {
-                MaxBuffers = (int) (bytes / MaximumBufferSize);
+                MaxBuffers = (int) (bytes / MaximumBufferSize) / 2;
                 ReadBufferSize = MaximumBufferSize;
             }
             else
             {
                 ReadBufferSize = (int) (bytes / Environment.ProcessorCount);
-                MaxBuffers = (int) (bytes / ReadBufferSize);
+                MaxBuffers = (int) (bytes / ReadBufferSize) / 2;
             }
         }
     }

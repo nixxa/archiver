@@ -11,13 +11,16 @@ namespace Archiver.Threading
         private readonly Thread[] _pool;
         private volatile bool _active;
         private bool _adding = true;
+        private readonly int _maxLength;
+        private ManualResetEvent _canWrite = new ManualResetEvent(true);
         private AutoResetEvent _completed = new AutoResetEvent(false);
 
         public Exception Exception { get; set; }
 
-        public GeneralThreadPool()
+        public GeneralThreadPool(int maxLength = short.MaxValue)
         {
             int maxThreads = Environment.ProcessorCount;
+            _maxLength = maxLength;
             _active = true;
             _pool = new Thread[maxThreads];
             for (int i = 0; i < _pool.Length; i++)
@@ -29,10 +32,15 @@ namespace Archiver.Threading
 
         public void Enqueue(Action action)
         {
+            _canWrite.WaitOne();
             _lock.EnterWriteLock();
             try
             {
                 _queue.Enqueue(action);
+                if (_queue.Count >= _maxLength)
+                {
+                    _canWrite.Reset();
+                }
             }
             finally
             {
@@ -76,6 +84,10 @@ namespace Archiver.Threading
                     try
                     {
                         action = _queue.Dequeue();
+                        if (_queue.Count < _maxLength)
+                        {
+                            _canWrite.Set();
+                        }
                     }
                     finally
                     {

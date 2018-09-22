@@ -1,5 +1,4 @@
-﻿using Archiver.Interfaces;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Threading;
 
 namespace Archiver.Collections
