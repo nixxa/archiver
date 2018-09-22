@@ -1,46 +1,30 @@
 ﻿using System.Collections.Generic;
 using System.Threading;
+using CancellationToken = Archiver.Threading.CancellationToken;
 
 namespace Archiver.Collections
 {
-    public class ConcurrentQueue<T>
+    public class ConcurrentQueue<T> : DelayedLimitedCollection
     {
         protected readonly Queue<T> Internal = new Queue<T>();
-        protected readonly ReaderWriterLockSlim Lock = new ReaderWriterLockSlim();
-        protected readonly int MaxLength;
-        protected readonly ManualResetEvent CanWrite = new ManualResetEvent(true);
+        protected readonly ReaderWriterLockSlim Lock = new ReaderWriterLockSlim();        
         protected readonly bool VerboseOutput;
 
-        private bool _started = false;
-        private AutoResetEvent _startedEvent = new AutoResetEvent(false);
-
-        public ConcurrentQueue(int maxLength = short.MaxValue, bool verboseOutput = false)
+        public ConcurrentQueue(CancellationToken cancellationToken, int maxLength = short.MaxValue, bool verboseOutput = false)
+            : base(cancellationToken, maxLength)
         {
-            MaxLength = maxLength;
             VerboseOutput = verboseOutput;
-        }
-
-        public void WaitForInput()
-        {
-            _startedEvent.WaitOne();
         }
 
         public virtual void Enqueue(T obj)
         {
-            CanWrite.WaitOne();
+            WaitFor(CanWrite);
             Lock.EnterWriteLock();
             try
             {
                 Internal.Enqueue(obj);
-                if (!_started)
-                {
-                    _started = true;
-                    _startedEvent.Set();
-                }
-                if (Internal.Count == MaxLength)
-                {
-                    CanWrite.Reset();
-                }
+                SetChanged();
+                Block(Internal.Count);
             }
             finally
             {
@@ -54,10 +38,7 @@ namespace Archiver.Collections
             try
             {
                 var result = Internal.Dequeue();
-                if (Internal.Count < MaxLength)
-                {
-                    CanWrite.Set();
-                }
+                Unblock(Internal.Count);
                 return result;
             }
             finally

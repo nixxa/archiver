@@ -3,7 +3,9 @@ using Archiver.Interfaces;
 using Archiver.Threading;
 using System;
 using System.IO;
+using System.IO.Compression;
 using System.Threading;
+using CancellationToken = Archiver.Threading.CancellationToken;
 
 namespace Archiver
 {
@@ -17,6 +19,14 @@ namespace Archiver
         private bool _reading = false;
         private bool _executing = false;
 
+        private Exception _exception;
+
+        protected bool ErrorOccured => _exception != null;
+        protected CancellationToken CancellationToken;
+
+        public abstract CompressionType Type { get; }
+        public abstract CompressionMode Mode { get; }
+
         public AbstractProcessor(Options options)
         {
             Options = options;
@@ -24,29 +34,52 @@ namespace Archiver
 
         public virtual void Run()
         {
-            ReadChunksQueue = new ConcurrentQueue<IChunk>(Options.MaxBuffers, Options.VerboseOutput);
-            ExecutedChunksQueue = new IndexedConcurrentQueue<IChunk>(0, Options.VerboseOutput);
+            CancellationToken = new CancellationToken();
+            ReadChunksQueue = new ConcurrentQueue<IChunk>(CancellationToken, Options.MaxBuffers, Options.VerboseOutput);
+            ExecutedChunksQueue = new IndexedConcurrentQueue<IChunk>(CancellationToken, Options.MaxBuffers, Options.VerboseOutput);
 
-            var execThread = new Thread(Execute);
+            var execThread = new ManagedThread(Execute, OnException);
             execThread.Start();
-            var writeThread = new Thread(Write);
+            var writeThread = new ManagedThread(Write, OnException);
             writeThread.Start();
 
-            using (var inputStream = new FileStream(Options.Input, FileMode.Open, FileAccess.Read, FileShare.Read))
+            try
             {
-                ReadStream(inputStream);
+                using (var inputStream = new FileStream(Options.Input, FileMode.Open, FileAccess.Read, FileShare.Read))
+                {
+                    ReadStream(inputStream);
+                }
+            }
+            catch (Exception e)
+            {
+                OnException(e);
             }
 
             execThread.Join();
             writeThread.Join();
+
+            if (ErrorOccured)
+            {
+                throw _exception;
+            }
+
             ReadChunksQueue = null;
             ExecutedChunksQueue = null;
+        }
+
+        protected void OnException(Exception e)
+        {
+            _exception = _exception != null ? _exception : e;
+            if (_exception != null)
+            {
+                CancellationToken.Cancel(e);
+            }
         }
 
         protected virtual void ReadStream(FileStream inputStream)
         {
             _reading = true;
-            while (true)
+            while (true && !ErrorOccured)
             {
                 IChunk chunk = ReadChunk(inputStream);
                 if (chunk.Body.Length == 0)
@@ -82,9 +115,9 @@ namespace Archiver
         {
             ReadChunksQueue.WaitForInput();
             _executing = true;
-            using (var threadPool = new GeneralThreadPool(Options.MaxBuffers))
+            using (var threadPool = new GeneralThreadPool(CancellationToken, Options.MaxBuffers))
             {
-                while (_reading || ReadChunksQueue.Count > 0)
+                while ((_reading || ReadChunksQueue.Count > 0) && !ErrorOccured)
                 {
                     if (ReadChunksQueue.Count == 0)
                     {
@@ -111,7 +144,7 @@ namespace Archiver
             ExecutedChunksQueue.WaitForInput();
             using (var outputStream = new FileStream(Options.Output, FileMode.Create))
             {
-                while (_executing || ExecutedChunksQueue.Count > 0)
+                while ((_executing || ExecutedChunksQueue.Count > 0) && !ErrorOccured)
                 {
                     if (ExecutedChunksQueue.Count == 0)
                     {

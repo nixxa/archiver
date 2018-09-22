@@ -4,14 +4,14 @@ using Archiver.Interfaces;
 
 namespace Archiver
 {
-    public class GZipCompressor : AbstractProcessor
+    public class DeflateCompressor : AbstractProcessor
     {
-        public GZipCompressor(Options options) : base(options)
+        public override CompressionType Type => CompressionType.Deflate;
+        public override CompressionMode Mode => CompressionMode.Compress;
+
+        public DeflateCompressor(Options options) : base(options)
         {
         }
-
-        public override CompressionType Type => CompressionType.GZip;
-        public override CompressionMode Mode => CompressionMode.Compress;
 
         protected override IChunk CreateChunk()
         {
@@ -22,7 +22,7 @@ namespace Archiver
         {
             using (var memoryStream = new MemoryStream())
             {
-                using (var gzipStream = new GZipStream(memoryStream, CompressionMode.Compress))
+                using (var gzipStream = new DeflateStream(memoryStream, CompressionMode.Compress))
                 {
                     gzipStream.Write(chunk.Body, 0, chunk.Body.Length);
                 }

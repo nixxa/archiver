@@ -21,6 +21,8 @@ namespace Archiver
                 CalculateBuffers();
             }
         }
+        public CompressionType Type { get; set; }
+
 
         private int _readingMemory = -1;
 
@@ -30,6 +32,7 @@ namespace Archiver
         {
             ReadBufferSize = 32 * 1024 * 1024;
             MaxBuffers = short.MaxValue;
+            Type = CompressionType.GZip;
         }
 
         private void CalculateBuffers()

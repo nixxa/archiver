@@ -2,10 +2,11 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using CancellationToken = Archiver.Threading.CancellationToken;
 
 namespace Archiver.Collections
 {
-    public class IndexedConcurrentQueue<T> where T: IIndexedItem
+    public class IndexedConcurrentQueue<T> : DelayedLimitedCollection where T: IIndexedItem
     {
         protected readonly Dictionary<int, T> Internal = new Dictionary<int, T>();
         protected readonly ReaderWriterLockSlim Lock = new ReaderWriterLockSlim();
@@ -16,23 +17,20 @@ namespace Archiver.Collections
 
         private ManualResetEvent _waiter = new ManualResetEvent(false);
 
-        private bool _started = false;
-        private AutoResetEvent _startedEvent = new AutoResetEvent(false);
-
-        public IndexedConcurrentQueue(int startIndex = 0, bool verboseOutput = false)
+        public IndexedConcurrentQueue(CancellationToken cancellationToken, int maxLength = short.MaxValue, bool verboseOutput = false)
+            : base (cancellationToken, maxLength)
         {
-            _startIndex = startIndex;
+            _startIndex = 0;
             _nextIndex = _startIndex + 1;
             VerboseOutput = verboseOutput;
         }
 
-        public void WaitForInput()
+        public virtual void Enqueue(T obj)
         {
-            _startedEvent.WaitOne();
-        }
-
-        public void Enqueue(T obj)
-        {
+            if (obj.Index != _nextIndex)
+            {
+                WaitFor(CanWrite);
+            }
             Lock.EnterWriteLock();
             try
             {
@@ -41,11 +39,8 @@ namespace Archiver.Collections
                 {
                     Console.WriteLine("IndexedConcurrentQueue: chunk " + obj.Index + " was added");
                 }
-                if (!_started)
-                {
-                    _started = true;
-                    _startedEvent.Set();
-                }
+                SetChanged();
+                Block(Internal.Count);
                 if (obj.Index == _nextIndex)
                 {
                     _waiter.Set();
@@ -57,7 +52,7 @@ namespace Archiver.Collections
             }
         }
 
-        public T Dequeue()
+        public virtual T Dequeue()
         {
             T item = default(T);
             if (!Internal.TryGetValue(_nextIndex, out item))
@@ -78,6 +73,7 @@ namespace Archiver.Collections
                 {
                     _waiter.Reset();
                 }
+                Unblock(Internal.Count);
                 return item;
             }
             finally

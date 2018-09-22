@@ -6,21 +6,18 @@ namespace Archiver.Threading
 {
     public class GeneralThreadPool : IDisposable
     {
-        private readonly ConcurrentQueue<Action> _queue = new ConcurrentQueue<Action>();
-        private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim();
+        private readonly ConcurrentQueue<Action> _queue;
         private readonly Thread[] _pool;
         private volatile bool _active;
         private bool _adding = true;
-        private readonly int _maxLength;
-        private ManualResetEvent _canWrite = new ManualResetEvent(true);
         private AutoResetEvent _completed = new AutoResetEvent(false);
 
         public Exception Exception { get; set; }
 
-        public GeneralThreadPool(int maxLength = short.MaxValue)
+        public GeneralThreadPool(CancellationToken cancellationToken, int maxLength = short.MaxValue)
         {
+            _queue = new ConcurrentQueue<Action>(cancellationToken, maxLength);
             int maxThreads = Environment.ProcessorCount;
-            _maxLength = maxLength;
             _active = true;
             _pool = new Thread[maxThreads];
             for (int i = 0; i < _pool.Length; i++)
@@ -32,20 +29,7 @@ namespace Archiver.Threading
 
         public void Enqueue(Action action)
         {
-            _canWrite.WaitOne();
-            _lock.EnterWriteLock();
-            try
-            {
-                _queue.Enqueue(action);
-                if (_queue.Count >= _maxLength)
-                {
-                    _canWrite.Reset();
-                }
-            }
-            finally
-            {
-                _lock.ExitWriteLock();
-            }
+            _queue.Enqueue(action);
         }
 
         public void StartAdding()
@@ -68,37 +52,16 @@ namespace Archiver.Threading
             while (_active)
             {
                 Action action = null;
-                _lock.EnterUpgradeableReadLock();
-                try
+                if (_queue.Count == 0)
                 {
-                    if (_queue.Count == 0)
+                    if (!_adding)
                     {
-                        if (!_adding)
-                        {
-                            _completed.Set();
-                        }
-                        Thread.Sleep(10);
-                        continue;
+                        _completed.Set();
                     }
-                    _lock.EnterWriteLock();
-                    try
-                    {
-                        action = _queue.Dequeue();
-                        if (_queue.Count < _maxLength)
-                        {
-                            _canWrite.Set();
-                        }
-                    }
-                    finally
-                    {
-                        _lock.ExitWriteLock();
-                    }
+                    Thread.Sleep(10);
+                    continue;
                 }
-                finally
-                {
-                    _lock.ExitUpgradeableReadLock();
-                }
-
+                action = _queue.Dequeue();
                 try
                 {
                     action();
