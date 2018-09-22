@@ -8,8 +8,9 @@
     <OutputType>Exe</OutputType>
     <RootNamespace>Archiver</RootNamespace>
     <AssemblyName>Archiver</AssemblyName>
-    <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.7.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
+    <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -20,6 +21,7 @@
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -29,6 +31,7 @@
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup>
     <StartupObject>Archiver.Program</StartupObject>
@@ -43,10 +46,11 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Chunk.cs" />
-    <Compile Include="Compressor.cs" />
-    <Compile Include="Decompressor.cs" />
-    <Compile Include="AbstractGzipProcessor.cs" />
+    <Compile Include="GZipCompressor.cs" />
+    <Compile Include="GZipDecompressor.cs" />
+    <Compile Include="AbstractProcessor.cs" />
     <Compile Include="Collections\ConcurrentQueue.cs" />
+    <Compile Include="Interfaces\IChunk.cs" />
     <Compile Include="Interfaces\IIndexedItem.cs" />
     <Compile Include="Options.cs" />
     <Compile Include="OptionSet.cs" />
@@ -54,6 +58,9 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Collections\IndexedConcurrentQueue.cs" />
     <Compile Include="Threading\GeneralThreadPool.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="app.config" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

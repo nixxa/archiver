@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using Archiver.Interfaces;
+using System.Collections.Generic;
 using System.Threading;
 
 namespace Archiver.Collections
@@ -9,10 +10,20 @@ namespace Archiver.Collections
         protected readonly ReaderWriterLockSlim Lock = new ReaderWriterLockSlim();
         protected readonly int MaxLength;
         protected readonly ManualResetEvent CanWrite = new ManualResetEvent(true);
+        protected readonly bool VerboseOutput;
 
-        public ConcurrentQueue(int maxLength = short.MaxValue)
+        private bool _started = false;
+        private AutoResetEvent _startedEvent = new AutoResetEvent(false);
+
+        public ConcurrentQueue(int maxLength = short.MaxValue, bool verboseOutput = false)
         {
             MaxLength = maxLength;
+            VerboseOutput = verboseOutput;
+        }
+
+        public void WaitForInput()
+        {
+            _startedEvent.WaitOne();
         }
 
         public virtual void Enqueue(T obj)
@@ -22,6 +33,11 @@ namespace Archiver.Collections
             try
             {
                 Internal.Enqueue(obj);
+                if (!_started)
+                {
+                    _started = true;
+                    _startedEvent.Set();
+                }
                 if (Internal.Count == MaxLength)
                 {
                     CanWrite.Reset();

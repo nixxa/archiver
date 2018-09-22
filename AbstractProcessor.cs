@@ -1,29 +1,31 @@
 ﻿using Archiver.Collections;
+using Archiver.Interfaces;
 using Archiver.Threading;
+using System;
 using System.IO;
 using System.Threading;
 
 namespace Archiver
 {
-    public abstract class AbstractGzipProcessor
+    public abstract class AbstractProcessor
     {
         protected Options Options { get; private set; }
-        private ConcurrentQueue<Chunk> ReadChunksQueue { get; set; }
-        private IndexedConcurrentQueue<Chunk> ExecutedChunksQueue { get; set; }
+        private ConcurrentQueue<IChunk> ReadChunksQueue { get; set; }
+        private IndexedConcurrentQueue<IChunk> ExecutedChunksQueue { get; set; }
 
         private int _chunkIndex = 0;
         private bool _reading = false;
         private bool _executing = false;
 
-        public AbstractGzipProcessor(Options options)
+        public AbstractProcessor(Options options)
         {
             Options = options;
         }
 
         public virtual void Run()
         {
-            ReadChunksQueue = new ConcurrentQueue<Chunk>(Options.MaxBuffers);
-            ExecutedChunksQueue = new IndexedConcurrentQueue<Chunk>();
+            ReadChunksQueue = new ConcurrentQueue<IChunk>(Options.MaxBuffers, Options.VerboseOutput);
+            ExecutedChunksQueue = new IndexedConcurrentQueue<IChunk>(0, Options.VerboseOutput);
 
             var execThread = new Thread(Execute);
             execThread.Start();
@@ -46,8 +48,8 @@ namespace Archiver
             _reading = true;
             while (true)
             {
-                Chunk chunk = ReadChunk(inputStream);
-                if (chunk.InputLength == 0)
+                IChunk chunk = ReadChunk(inputStream);
+                if (chunk.Body.Length == 0)
                 {
                     break;
                 }
@@ -56,15 +58,29 @@ namespace Archiver
             _reading = false;
         }
 
-        protected virtual Chunk ReadChunk(FileStream inputStream)
+        protected abstract IChunk CreateChunk();
+
+        protected virtual IChunk ReadChunk(FileStream inputStream)
         {
-            var chunk = new Chunk(++_chunkIndex, new byte[Options.ReadBufferSize]);
-            chunk.InputLength = inputStream.Read(chunk.Input, 0, chunk.Input.Length);
+            var buffer = new byte[Options.ReadBufferSize];
+            var count = inputStream.Read(buffer, 0, buffer.Length);
+            if (count != buffer.Length)
+            {
+                Array.Resize(ref buffer, count);
+            }
+            var chunk = CreateChunk();
+            chunk.Index = ++_chunkIndex;
+            chunk.Body = buffer;
+            if (Options.VerboseOutput)
+            {
+                Console.WriteLine("AbstractProcessor: chunk " + chunk.Index + " was read");
+            }
             return chunk;
         }
 
         protected virtual void Execute()
         {
+            ReadChunksQueue.WaitForInput();
             _executing = true;
             using (var threadPool = new GeneralThreadPool())
             {
@@ -88,10 +104,11 @@ namespace Archiver
             _executing = false;
         }
 
-        protected abstract void ExecuteChunk(Chunk chunk);
+        protected abstract void ExecuteChunk(IChunk chunk);
 
         protected virtual void Write()
         {
+            ExecutedChunksQueue.WaitForInput();
             using (var outputStream = new FileStream(Options.Output, FileMode.Create))
             {
                 while (_executing || ExecutedChunksQueue.Count > 0)
@@ -102,7 +119,11 @@ namespace Archiver
                         continue;
                     }
                     var chunk = ExecutedChunksQueue.Dequeue();
-                    outputStream.Write(chunk.Output, 0, chunk.Output.Length);
+                    outputStream.Write(chunk.Body, 0, chunk.Body.Length);
+                    if (Options.VerboseOutput)
+                    {
+                        Console.WriteLine("AbstractProcessor: chunk " + chunk.Index + " was written");
+                    }
                 }
             }
         }

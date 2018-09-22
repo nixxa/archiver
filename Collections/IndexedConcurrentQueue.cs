@@ -9,16 +9,26 @@ namespace Archiver.Collections
     {
         protected readonly Dictionary<int, T> Internal = new Dictionary<int, T>();
         protected readonly ReaderWriterLockSlim Lock = new ReaderWriterLockSlim();
+        protected readonly bool VerboseOutput;
 
         private int _startIndex;
         private int _nextIndex;
 
         private ManualResetEvent _waiter = new ManualResetEvent(false);
 
-        public IndexedConcurrentQueue(int startIndex = 0)
+        private bool _started = false;
+        private AutoResetEvent _startedEvent = new AutoResetEvent(false);
+
+        public IndexedConcurrentQueue(int startIndex = 0, bool verboseOutput = false)
         {
             _startIndex = startIndex;
             _nextIndex = _startIndex + 1;
+            VerboseOutput = verboseOutput;
+        }
+
+        public void WaitForInput()
+        {
+            _startedEvent.WaitOne();
         }
 
         public void Enqueue(T obj)
@@ -27,6 +37,15 @@ namespace Archiver.Collections
             try
             {
                 Internal.Add(obj.Index, obj);
+                if (VerboseOutput)
+                {
+                    Console.WriteLine("IndexedConcurrentQueue: chunk " + obj.Index + " was added");
+                }
+                if (!_started)
+                {
+                    _started = true;
+                    _startedEvent.Set();
+                }
                 if (obj.Index == _nextIndex)
                 {
                     _waiter.Set();
@@ -50,6 +69,10 @@ namespace Archiver.Collections
             try
             {
                 Internal.Remove(_nextIndex);
+                if (VerboseOutput)
+                {
+                    Console.WriteLine("IndexedConcurrentQueue: chunk " + item.Index + " was removed");
+                }
                 _nextIndex += 1;
                 if (!Internal.ContainsKey(_nextIndex))
                 {

@@ -4,6 +4,7 @@ namespace Archiver
 {
     public class Options
     {
+        public bool VerboseOutput { get; set; }
         public string Input { get; set; }
         public string Output { get; set; }
         public int ReadBufferSize { get; private set; }
