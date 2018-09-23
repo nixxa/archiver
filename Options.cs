@@ -26,7 +26,7 @@ namespace Archiver
 
         private int _readingMemory = -1;
 
-        private const int MaximumBufferSize = 1024 * 1024; // 8Mb
+        private const int MaximumBufferSize = 1024 * 1024; // 1Mb
 
         public Options()
         {

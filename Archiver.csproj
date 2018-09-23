@@ -49,8 +49,6 @@
     <Compile Include="Collections\DelayedLimitedCollection.cs" />
     <Compile Include="Collections\LimitedCollection.cs" />
     <Compile Include="CompressionType.cs" />
-    <Compile Include="DeflateCompressor.cs" />
-    <Compile Include="DeflateDecompressor.cs" />
     <Compile Include="GZipCompressor.cs" />
     <Compile Include="GZipDecompressor.cs" />
     <Compile Include="AbstractProcessor.cs" />

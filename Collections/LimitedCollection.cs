@@ -37,7 +37,7 @@ namespace Archiver.Collections
 
         protected bool Block(int count)
         {
-            if (count >= MaxLength)
+            if (count > MaxLength)
             {
                 CanWrite.Reset();
                 return true;
@@ -47,7 +47,7 @@ namespace Archiver.Collections
 
         protected bool Unblock(int count)
         {
-            if (count < MaxLength)
+            if (count <= MaxLength)
             {
                 CanWrite.Set();
                 return true;

@@ -52,7 +52,19 @@ namespace Archiver.Threading
             while (_active)
             {
                 Action action = null;
-                if (_queue.Count == 0)
+                if (_queue.TryDequeue(out action))
+                {
+                    try
+                    {
+                        action();
+                    }
+                    catch (Exception e)
+                    {
+                        Exception = e;
+                        throw;
+                    }
+                }
+                else
                 {
                     if (!_adding)
                     {
@@ -60,17 +72,7 @@ namespace Archiver.Threading
                     }
                     Thread.Sleep(10);
                     continue;
-                }
-                action = _queue.Dequeue();
-                try
-                {
-                    action();
-                }
-                catch (Exception e)
-                {
-                    Exception = e;
-                    throw;
-                }
+                }                
             }
         }
 

@@ -1,5 +1,6 @@
 ﻿using Archiver.Threading;
 using System.Threading;
+using CancellationToken = Archiver.Threading.CancellationToken;
 
 namespace Archiver.Collections
 {

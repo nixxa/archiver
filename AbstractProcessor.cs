@@ -119,17 +119,20 @@ namespace Archiver
             {
                 while ((_reading || ReadChunksQueue.Count > 0) && !ErrorOccured)
                 {
-                    if (ReadChunksQueue.Count == 0)
+                    IChunk chunk = null;
+                    if (ReadChunksQueue.TryDequeue(out chunk))
+                    {
+                        threadPool.Enqueue(() =>
+                        {
+                            ExecuteChunk(chunk);
+                            ExecutedChunksQueue.Enqueue(chunk);
+                        });
+                    }
+                    else
                     {
                         Thread.Sleep(10);
-                        continue;
                     }
-                    var chunk = ReadChunksQueue.Dequeue();
-                    threadPool.Enqueue(() =>
-                    {
-                        ExecuteChunk(chunk);
-                        ExecutedChunksQueue.Enqueue(chunk);
-                    });
+                    
                 }
                 threadPool.StopAdding();
                 threadPool.WaitForCompletion();

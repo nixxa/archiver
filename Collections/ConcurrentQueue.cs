@@ -22,7 +22,8 @@ namespace Archiver.Collections
             Lock.EnterWriteLock();
             try
             {
-                Internal.Enqueue(obj);
+                lock (Internal)
+                    Internal.Enqueue(obj);
                 SetChanged();
                 Block(Internal.Count);
             }
@@ -37,13 +38,47 @@ namespace Archiver.Collections
             Lock.EnterWriteLock();
             try
             {
-                var result = Internal.Dequeue();
-                Unblock(Internal.Count);
-                return result;
+                lock (Internal)
+                {
+                    var result = Internal.Dequeue();
+                    Unblock(Internal.Count);
+                    return result;
+                }
             }
             finally
             {
                 Lock.ExitWriteLock();
+            }
+        }
+
+        public virtual bool TryDequeue(out T item)
+        {
+            Lock.EnterUpgradeableReadLock();
+            try
+            {
+                if (Internal.Count > 0)
+                {
+                    Lock.EnterWriteLock();
+                    try
+                    {
+                        item = Internal.Dequeue();
+                        Unblock(Internal.Count);
+                    }
+                    finally
+                    {
+                        Lock.ExitWriteLock();
+                    }
+                    return true;
+                }
+                else
+                {
+                    item = default(T);
+                }
+                return false;
+            }
+            finally
+            {
+                Lock.ExitUpgradeableReadLock();
             }
         }
 
@@ -54,7 +89,8 @@ namespace Archiver.Collections
                 Lock.EnterReadLock();
                 try
                 {
-                    return Internal.Count;
+                    lock (Internal)
+                        return Internal.Count;
                 }
                 finally
                 {
