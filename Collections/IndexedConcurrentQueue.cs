@@ -6,6 +6,11 @@ using CancellationToken = Archiver.Threading.CancellationToken;
 
 namespace Archiver.Collections
 {
+    /// <summary>
+    /// Synchronized queue with ordered output strategy.
+    /// All items in the queue are sorted by IIndexedItem.Index field in an ascending order. Sequential call of Dequeue method will get these items in that order.
+    /// </summary>
+    /// <typeparam name="T">An indexable queue item</typeparam>
     public class IndexedConcurrentQueue<T> : DelayedLimitedCollection where T: IIndexedItem
     {
         protected readonly Dictionary<int, T> Internal = new Dictionary<int, T>();
@@ -15,14 +20,20 @@ namespace Archiver.Collections
         private int _startIndex;
         private int _nextIndex;
 
-        private ManualResetEvent _waiter = new ManualResetEvent(false);
-
         public IndexedConcurrentQueue(CancellationToken cancellationToken, int maxLength = short.MaxValue, bool verboseOutput = false)
             : base (cancellationToken, maxLength)
         {
             _startIndex = 0;
             _nextIndex = _startIndex + 1;
             VerboseOutput = verboseOutput;
+        }
+
+        ~IndexedConcurrentQueue()
+        {
+            if (Lock != null)
+            {
+                Lock.Dispose();
+            }
         }
 
         public virtual void Enqueue(T obj)
@@ -35,50 +46,50 @@ namespace Archiver.Collections
             try
             {
                 Internal.Add(obj.Index, obj);
-                if (VerboseOutput)
-                {
-                    Console.WriteLine("IndexedConcurrentQueue: chunk " + obj.Index + " was added");
-                }
-                SetChanged();
-                Block(Internal.Count);
-                if (obj.Index == _nextIndex)
-                {
-                    _waiter.Set();
-                }
             }
             finally
             {
                 Lock.ExitWriteLock();
             }
+            if (VerboseOutput)
+            {
+                Console.WriteLine("IndexedConcurrentQueue: chunk " + obj.Index + " was added");
+            }
+            SetChanged();
+            Block(Internal.Count);
         }
 
-        public virtual T Dequeue()
+        public virtual bool TryDequeue(out T item)
         {
-            T item = default(T);
-            if (!Internal.TryGetValue(_nextIndex, out item))
-            {
-                _waiter.WaitOne();
-                item = Internal[_nextIndex];
-            }
-            Lock.EnterWriteLock();
+            item = default(T);
+            Lock.EnterUpgradeableReadLock();
             try
             {
-                Internal.Remove(_nextIndex);
-                if (VerboseOutput)
+                if (Internal.Count != 0 && Internal.ContainsKey(_nextIndex))
                 {
-                    Console.WriteLine("IndexedConcurrentQueue: chunk " + item.Index + " was removed");
+                    Lock.EnterWriteLock();
+                    try
+                    {
+                        item = Internal[_nextIndex];
+                        Internal.Remove(_nextIndex);
+                    }
+                    finally
+                    {
+                        Lock.ExitWriteLock();
+                    }
+                    Unblock(Internal.Count);
+                    if (VerboseOutput)
+                    {
+                        Console.WriteLine("IndexedConcurrentQueue: chunk " + item.Index + " was removed");
+                    }
+                    _nextIndex += 1;
+                    return true;
                 }
-                _nextIndex += 1;
-                if (!Internal.ContainsKey(_nextIndex))
-                {
-                    _waiter.Reset();
-                }
-                Unblock(Internal.Count);
-                return item;
+                return false;
             }
             finally
             {
-                Lock.ExitWriteLock();
+                Lock.ExitUpgradeableReadLock();
             }
         }
 

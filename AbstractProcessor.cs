@@ -9,6 +9,9 @@ using CancellationToken = Archiver.Threading.CancellationToken;
 
 namespace Archiver
 {
+    /// <summary>
+    /// Base class for all compressors/decompressors.
+    /// </summary>
     public abstract class AbstractProcessor
     {
         protected Options Options { get; private set; }
@@ -47,7 +50,10 @@ namespace Archiver
             {
                 using (var inputStream = new FileStream(Options.Input, FileMode.Open, FileAccess.Read, FileShare.Read))
                 {
-                    ReadStream(inputStream);
+                    using (var bufferedStream = new BufferedStream(inputStream, Options.ReadBufferSize))
+                    {
+                        ReadStream(inputStream);
+                    }
                 }
             }
             catch (Exception e)
@@ -76,7 +82,7 @@ namespace Archiver
             }
         }
 
-        protected virtual void ReadStream(FileStream inputStream)
+        protected virtual void ReadStream(Stream inputStream)
         {
             _reading = true;
             while (true && !ErrorOccured)
@@ -91,9 +97,12 @@ namespace Archiver
             _reading = false;
         }
 
-        protected abstract IChunk CreateChunk();
+        protected virtual IChunk CreateChunk()
+        {
+            return new Chunk();
+        }
 
-        protected virtual IChunk ReadChunk(FileStream inputStream)
+        protected virtual IChunk ReadChunk(Stream inputStream)
         {
             var buffer = new byte[Options.ReadBufferSize];
             var count = inputStream.Read(buffer, 0, buffer.Length);
@@ -147,18 +156,23 @@ namespace Archiver
             ExecutedChunksQueue.WaitForInput();
             using (var outputStream = new FileStream(Options.Output, FileMode.Create))
             {
-                while ((_executing || ExecutedChunksQueue.Count > 0) && !ErrorOccured)
+                using (var bufferedSTream = new BufferedStream(outputStream, Options.ReadBufferSize))
                 {
-                    if (ExecutedChunksQueue.Count == 0)
+                    while ((_executing || ExecutedChunksQueue.Count > 0) && !ErrorOccured)
                     {
-                        Thread.Sleep(10);
-                        continue;
-                    }
-                    var chunk = ExecutedChunksQueue.Dequeue();
-                    outputStream.Write(chunk.Body, 0, chunk.Body.Length);
-                    if (Options.VerboseOutput)
-                    {
-                        Console.WriteLine("AbstractProcessor: chunk " + chunk.Index + " was written");
+                        IChunk chunk = null;
+                        if (ExecutedChunksQueue.TryDequeue(out chunk))
+                        {
+                            bufferedSTream.Write(chunk.Body, 0, chunk.Body.Length);
+                            if (Options.VerboseOutput)
+                            {
+                                Console.WriteLine("AbstractProcessor: chunk " + chunk.Index + " was written");
+                            }
+                        }
+                        else
+                        {
+                            Thread.Sleep(10);
+                        }
                     }
                 }
             }

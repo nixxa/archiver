@@ -4,6 +4,10 @@ using CancellationToken = Archiver.Threading.CancellationToken;
 
 namespace Archiver.Collections
 {
+    /// <summary>
+    /// Synchronized queue with FIFO strategy, 
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
     public class ConcurrentQueue<T> : DelayedLimitedCollection
     {
         protected readonly Queue<T> Internal = new Queue<T>();
@@ -16,39 +20,52 @@ namespace Archiver.Collections
             VerboseOutput = verboseOutput;
         }
 
+        ~ConcurrentQueue()
+        {
+            if (Lock != null)
+            {
+                Lock.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// Add item to a queue
+        /// </summary>
+        /// <param name="obj">queue item</param>
         public virtual void Enqueue(T obj)
         {
             WaitFor(CanWrite);
             Lock.EnterWriteLock();
             try
             {
-                lock (Internal)
-                    Internal.Enqueue(obj);
-                SetChanged();
-                Block(Internal.Count);
+                Internal.Enqueue(obj);
             }
             finally
             {
                 Lock.ExitWriteLock();
             }
+            SetChanged();
+            Block(Internal.Count);
         }
 
+        /// <summary>
+        /// Get next item in queue
+        /// </summary>
+        /// <returns>A queue item</returns>
         public virtual T Dequeue()
         {
+            T result = default(T);
             Lock.EnterWriteLock();
             try
             {
-                lock (Internal)
-                {
-                    var result = Internal.Dequeue();
-                    Unblock(Internal.Count);
-                    return result;
-                }
+                result = Internal.Dequeue();
             }
             finally
             {
                 Lock.ExitWriteLock();
             }
+            Unblock(Internal.Count);
+            return result;
         }
 
         public virtual bool TryDequeue(out T item)
@@ -62,12 +79,12 @@ namespace Archiver.Collections
                     try
                     {
                         item = Internal.Dequeue();
-                        Unblock(Internal.Count);
                     }
                     finally
                     {
                         Lock.ExitWriteLock();
                     }
+                    Unblock(Internal.Count);
                     return true;
                 }
                 else
@@ -89,8 +106,7 @@ namespace Archiver.Collections
                 Lock.EnterReadLock();
                 try
                 {
-                    lock (Internal)
-                        return Internal.Count;
+                    return Internal.Count;
                 }
                 finally
                 {
